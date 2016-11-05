@@ -13,9 +13,10 @@ type FlagGroupValues struct {
 }
 
 type FlagType struct {
-	key          string
-	defaultValue string
-	validators   []FlagValidator
+	Key        string
+	Shorthand  string
+	Default    string
+	Validators []FlagValidator
 }
 
 type FlagValidator func(key string, value string) error
