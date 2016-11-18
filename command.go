@@ -7,4 +7,4 @@ type Command struct {
 	Action    CommandAction
 }
 
-type CommandAction func(knownFlags map[string]string, unknownFlags map[string]string) error
+type CommandAction func(app App, knownFlags map[string]string, unknownFlags map[string]string) error
