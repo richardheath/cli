@@ -2,11 +2,11 @@ package cli
 
 import "strings"
 
-// FlagGroup Definition for flag groups. This can be used to specify different types of flag groups that the app supports.
-type FlagGroup struct {
-	Prefix          string
-	ShorthandPrefix string
-	Group           string
+// FlagPrefix Definition for flag groups. This can be used to specify different types of flag groups that the app supports.
+type FlagPrefix struct {
+	Key         string
+	Shorthand   string
+	Description string
 }
 
 type FlagGroupValues struct {
@@ -29,23 +29,17 @@ func processFlags(flagArgs []string, flagTypes []FlagType, flagPrefixes map[stri
 	unknownFlags = make(map[string]string)
 	validatorErrors := ""
 
-	flagKey := ""
-	flagPrefix := ""
+	curFlagKey := ""
+	curFlagPrefix := ""
 	for _, arg := range flagArgs {
-		curPrefix := ""
-		for prefix := range flagPrefixes {
-			if strings.HasPrefix(arg, prefix) {
-				curPrefix = prefix
-				break
-			}
-		}
+		prefix, hasPrefix := tryGetFlagPrefix(arg, flagPrefixes)
 
-		if flagKey != "" {
+		if curFlagKey != "" {
 			value := arg
-			flagType, flagTypeFound := getKeyFlagType(flagTypes, flagPrefixes, flagKey, flagPrefix)
+			flagType, flagTypeFound := getKeyFlagType(flagTypes, flagPrefixes, curFlagKey, curFlagPrefix)
 
 			// Set value to default when flag have no value.
-			if curPrefix != "" {
+			if hasPrefix {
 				if flagTypeFound {
 					value = flagType.Default
 				} else {
@@ -59,16 +53,16 @@ func processFlags(flagArgs []string, flagTypes []FlagType, flagPrefixes map[stri
 					validatorErrors += flagType.Key + " " + flagType.Group + " validation error\n" + validationError.Error()
 				}
 
-				normalizedPrefix := flagPrefixes[flagPrefix]
+				normalizedPrefix := flagPrefixes[curFlagPrefix]
 				knownFlags[normalizedPrefix+flagType.Key] = value
 			} else {
-				unknownFlags[flagPrefix+flagKey] = value
+				unknownFlags[curFlagPrefix+curFlagKey] = value
 			}
 		}
 
-		if curPrefix != "" {
-			flagKey = strings.Replace(arg, curPrefix, "", 1)
-			flagPrefix = curPrefix
+		if prefix != "" {
+			curFlagKey = strings.Replace(arg, prefix, "", 1)
+			curFlagPrefix = prefix
 		}
 	}
 
@@ -88,4 +82,13 @@ func getKeyFlagType(flagTypes []FlagType, flagPrefixes map[string]string, flagKe
 
 func runFlagTypeValidators(flagType FlagType, flagValue string) error {
 	return nil
+}
+
+func tryGetFlagPrefix(value string, flagPrefixes map[string]string) (prefix string, hasPrefix bool) {
+	for prefix := range flagPrefixes {
+		if strings.HasPrefix(value, prefix) {
+			return prefix, true
+		}
+	}
+	return "", false
 }

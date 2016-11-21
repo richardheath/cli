@@ -5,19 +5,21 @@ import (
 	"strings"
 )
 
+// App CLI Application
 type App struct {
-	Name       string
-	Version    string
-	FlagGroups []FlagGroup
-	FlagTypes  []FlagType
-	Commands   []Command
+	Name         string
+	Version      string
+	FlagPrefixes []FlagPrefix
+	FlagTypes    []FlagType
+	Commands     []Command
 }
 
+// Run Execute command based on given arguments.
 func (app App) Run(args []string) error {
 	var err error
 	flagPrefixes := getFlagPrefixes(app)
 
-	commandArgs, flagArgs, err := splitCommandsAndFlags(app, args, flagPrefixes)
+	commandArgs, flagArgs, err := splitCommandsAndFlags(args, flagPrefixes)
 	if err != nil {
 		return err
 	}
@@ -37,7 +39,7 @@ func (app App) Run(args []string) error {
 	return nil
 }
 
-func splitCommandsAndFlags(app App, args []string, flagPrefixes map[string]string) ([]string, []string, error) {
+func splitCommandsAndFlags(args []string, flagPrefixes map[string]string) ([]string, []string, error) {
 	commands := make([]string, 0, 2)
 	flags := make([]string, 0, 2)
 	var currentFlag string
@@ -92,13 +94,13 @@ func getMatchingCommand(commands []Command, commandArgs []string, types []FlagTy
 
 func getFlagPrefixes(app App) map[string]string {
 	prefixes := make(map[string]string)
-	for _, group := range app.FlagGroups {
-		if group.Prefix != "" {
-			prefixes[group.Prefix] = group.Prefix
+	for _, prefix := range app.FlagPrefixes {
+		if prefix.Key != "" {
+			prefixes[prefix.Key] = prefix.Key
 		}
 
-		if group.ShorthandPrefix != "" {
-			prefixes[group.ShorthandPrefix] = group.Prefix
+		if prefix.Shorthand != "" {
+			prefixes[prefix.Shorthand] = prefix.Key
 		}
 	}
 
