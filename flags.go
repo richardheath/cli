@@ -1,6 +1,7 @@
 package cli
 
 import "strings"
+import "fmt"
 
 // FlagPrefix Definition for flag groups. This can be used to specify different types of flag groups that the app supports.
 type FlagPrefix struct {
@@ -9,32 +10,28 @@ type FlagPrefix struct {
 	Description string
 }
 
-type FlagGroupValues struct {
-	Known   map[string]string
-	Unknown map[string]string
-}
-
+// FlagType Flag type definition.
 type FlagType struct {
 	Key        string
 	Shorthand  string
 	Default    string
-	Group      string
+	Prefix     string
 	Validators []FlagValidator
 }
 
-type FlagValidator func(key string, value string) error
+// FlagValidator Validator function that will be used to validate flag type value.
+type FlagValidator func(value string) error
 
 func processFlags(flagArgs []string, flagTypes []FlagType, flagPrefixes map[string]string) (knownFlags map[string]string, unknownFlags map[string]string, err error) {
 	knownFlags = make(map[string]string)
 	unknownFlags = make(map[string]string)
 	validatorErrors := ""
 
-	curFlagKey := ""
-	curFlagPrefix := ""
+	curFlagKey, curFlagPrefix, inFLagKey := "", "", false
 	for _, arg := range flagArgs {
 		prefix, hasPrefix := tryGetFlagPrefix(arg, flagPrefixes)
 
-		if curFlagKey != "" {
+		if inFLagKey {
 			value := arg
 			flagType, flagTypeFound := getKeyFlagType(flagTypes, flagPrefixes, curFlagKey, curFlagPrefix)
 
@@ -50,7 +47,8 @@ func processFlags(flagArgs []string, flagTypes []FlagType, flagPrefixes map[stri
 			if flagTypeFound {
 				validationError := runFlagTypeValidators(flagType, value)
 				if validationError != nil {
-					validatorErrors += flagType.Key + " " + flagType.Group + " validation error\n" + validationError.Error()
+					// TODO: Parameterize validation formatter.
+					validatorErrors += flagType.Key + ": " + value + "\n" + validationError.Error() + "\n"
 				}
 
 				normalizedPrefix := flagPrefixes[curFlagPrefix]
@@ -60,10 +58,17 @@ func processFlags(flagArgs []string, flagTypes []FlagType, flagPrefixes map[stri
 			}
 		}
 
-		if prefix != "" {
+		if hasPrefix {
 			curFlagKey = strings.Replace(arg, prefix, "", 1)
 			curFlagPrefix = prefix
+			inFLagKey = true
+		} else {
+			inFLagKey = false
 		}
+	}
+
+	if validatorErrors != "" {
+		return knownFlags, unknownFlags, fmt.Errorf("Argument validation error:\n%s", validatorErrors)
 	}
 
 	return knownFlags, unknownFlags, nil
@@ -72,7 +77,7 @@ func processFlags(flagArgs []string, flagTypes []FlagType, flagPrefixes map[stri
 func getKeyFlagType(flagTypes []FlagType, flagPrefixes map[string]string, flagKey string, flagPrefix string) (flagType FlagType, found bool) {
 	var matchingType FlagType
 	for _, flagType := range flagTypes {
-		if (flagType.Key == flagKey || flagType.Shorthand == flagKey) && flagType.Group == flagPrefixes[flagPrefix] {
+		if (flagType.Key == flagKey || flagType.Shorthand == flagKey) && flagType.Prefix == flagPrefixes[flagPrefix] {
 			return flagType, true
 		}
 	}
@@ -81,6 +86,17 @@ func getKeyFlagType(flagTypes []FlagType, flagPrefixes map[string]string, flagKe
 }
 
 func runFlagTypeValidators(flagType FlagType, flagValue string) error {
+	errors := ""
+	for _, validator := range flagType.Validators {
+		err := validator(flagValue)
+		if err != nil {
+			errors += "  " + err.Error()
+		}
+	}
+
+	if errors != "" {
+		return fmt.Errorf(errors)
+	}
 	return nil
 }
 

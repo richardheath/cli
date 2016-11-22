@@ -28,7 +28,7 @@ func TestSplitArgs(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if commands, flags, _ := splitCommandsAndFlags(test.input, flagPrefixes); !reflect.DeepEqual(commands, test.expectedCommands) || !reflect.DeepEqual(flags, test.expectedFlags) {
+		if commands, flags := splitCommandsAndFlags(test.input, flagPrefixes); !reflect.DeepEqual(commands, test.expectedCommands) || !reflect.DeepEqual(flags, test.expectedFlags) {
 			t.Errorf("Input %q:\n", test.input)
 			t.Errorf("- Expected Commands: %v", test.expectedCommands)
 			t.Errorf("- Actual Commands: %v", commands)
@@ -54,7 +54,7 @@ func TestBasicCommandMatching(t *testing.T) {
 	}
 
 	commandWithFlagBinding := Command{
-		Path:      []string{"bind", "{--flagKey}"},
+		Path:      []string{"bind", "{{--flagKey}}"},
 		Commands:  []Command{},
 		FlagTypes: nil,
 		Action:    nil,
@@ -92,29 +92,31 @@ func TestBasicCommandMatching(t *testing.T) {
 				Description: "settings",
 			},
 		},
-		FlagTypes: nil,
+		FlagTypes: []FlagType{},
 		Commands: []Command{
 			command1,
 			command2,
 		},
 	}
 
-	flagTypes := []FlagType{}
 	var tests = []struct {
-		input []string
-		want  Command
+		input         []string
+		want          Command
+		expectedFlags []string
 	}{
-		{[]string{"cmd1"}, command1},
-		{[]string{"cmd2"}, command2},
-		{[]string{"cmd1", "single"}, commandSinglePath},
-		{[]string{"cmd1", "path1", "path2"}, commandWithMultiPath},
-		{[]string{"cmd1", "bind", "someInput"}, commandWithFlagBinding},
-		{[]string{"cmd2", "single"}, commandSinglePath},
+		{[]string{"cmd1"}, command1, []string{}},
+		{[]string{"cmd2"}, command2, []string{}},
+		{[]string{"cmd1", "single"}, commandSinglePath, []string{}},
+		{[]string{"cmd1", "path1", "path2"}, commandWithMultiPath, []string{}},
+		{[]string{"cmd1", "bind", "someInput"}, commandWithFlagBinding, []string{"--flagKey", "someInput"}},
+		{[]string{"cmd2", "single"}, commandSinglePath, []string{}},
 	}
 
 	for _, test := range tests {
-		if got, _ := getMatchingCommand(app.Commands, test.input, flagTypes); !reflect.DeepEqual(got.Path, test.want.Path) {
+		flagArgs := make([]string, 0, 2)
+		if got, _, bindedFlags, _ := getMatchingCommand(app.Commands, test.input, app.FlagTypes, flagArgs); !reflect.DeepEqual(got.Path, test.want.Path) || !reflect.DeepEqual(bindedFlags, test.expectedFlags) {
 			t.Errorf("Input %q:\n  E %v\n  G %v", test.input, test.want, got)
+			t.Errorf("Expected flags:\n  E %v\n  G %v", test.expectedFlags, bindedFlags)
 		}
 	}
 }

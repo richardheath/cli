@@ -11,7 +11,7 @@ func TestProcessFlags(t *testing.T) {
 			Key:        "flag1",
 			Shorthand:  "f",
 			Default:    "flag1Default",
-			Group:      "--",
+			Prefix:     "--",
 			Validators: []FlagValidator{},
 		},
 	}
@@ -52,7 +52,7 @@ func TestGetKeyFlagType(t *testing.T) {
 		Key:        "flag1",
 		Shorthand:  "f",
 		Default:    "flag1Default",
-		Group:      "--",
+		Prefix:     "--",
 		Validators: []FlagValidator{},
 	}
 

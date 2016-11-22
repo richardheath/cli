@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -18,18 +18,14 @@ type App struct {
 func (app App) Run(args []string) error {
 	var err error
 	flagPrefixes := getFlagPrefixes(app)
+	commandArgs, flagArgs := splitCommandsAndFlags(args, flagPrefixes)
 
-	commandArgs, flagArgs, err := splitCommandsAndFlags(args, flagPrefixes)
+	command, flagTypes, bindedFlags, err := getMatchingCommand(app.Commands, commandArgs, app.FlagTypes, []string{})
 	if err != nil {
 		return err
 	}
 
-	flagTypes := app.FlagTypes[:]
-	command, err := getMatchingCommand(app.Commands, commandArgs, flagTypes)
-	if err != nil {
-		return err
-	}
-
+	flagArgs = append(flagArgs, bindedFlags...)
 	knownFlags, unknownFlags, err := processFlags(flagArgs, flagTypes, flagPrefixes)
 	err = command.Action(app, knownFlags, unknownFlags)
 	if err != nil {
@@ -39,7 +35,7 @@ func (app App) Run(args []string) error {
 	return nil
 }
 
-func splitCommandsAndFlags(args []string, flagPrefixes map[string]string) ([]string, []string, error) {
+func splitCommandsAndFlags(args []string, flagPrefixes map[string]string) ([]string, []string) {
 	commands := make([]string, 0, 2)
 	flags := make([]string, 0, 2)
 	var currentFlag string
@@ -63,15 +59,22 @@ func splitCommandsAndFlags(args []string, flagPrefixes map[string]string) ([]str
 		}
 	}
 
-	return commands, flags, nil
+	return commands, flags
 }
 
-func getMatchingCommand(commands []Command, commandArgs []string, types []FlagType) (Command, error) {
+func getMatchingCommand(commands []Command, commandArgs []string, types []FlagType, bindedFlags []string) (Command, []FlagType, []string, error) {
 	for _, command := range commands {
 		argPos := 0
 
 		for _, path := range command.Path {
-			isFlagBinder := strings.HasPrefix(path, "{") && strings.HasSuffix(path, "}")
+			isFlagBinder := strings.HasPrefix(path, "{{") && strings.HasSuffix(path, "}}")
+			if isFlagBinder {
+				flagKey := path[2 : len(path)-2]
+
+				bindedFlags = append(bindedFlags, flagKey, commandArgs[argPos])
+			} else {
+			}
+
 			if commandArgs[argPos] == path || isFlagBinder {
 				argPos++
 			}
@@ -79,17 +82,17 @@ func getMatchingCommand(commands []Command, commandArgs []string, types []FlagTy
 
 		if argPos == len(commandArgs) {
 			types = append(types, command.FlagTypes...)
-			return command, nil
+			return command, types, bindedFlags, nil
 		}
 
 		if argPos > 0 {
 			types = append(types, command.FlagTypes...)
-			return getMatchingCommand(command.Commands, commandArgs[argPos:], types)
+			return getMatchingCommand(command.Commands, commandArgs[argPos:], types, bindedFlags)
 		}
 	}
 
 	var noMatch Command
-	return noMatch, errors.New("Command not found")
+	return noMatch, types, bindedFlags, fmt.Errorf("Command not found: %v", commandArgs)
 }
 
 func getFlagPrefixes(app App) map[string]string {
