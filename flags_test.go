@@ -15,10 +15,6 @@ func TestProcessFlags(t *testing.T) {
 			Validators: []FlagValidator{},
 		},
 	}
-	flagPrefixes := map[string]string{
-		"--": "--",
-		"-":  "--",
-	}
 	var tests = []struct {
 		input           []string
 		expectedKnown   map[string]string
@@ -37,12 +33,29 @@ func TestProcessFlags(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if known, unknown, _ := processFlags(test.input, flagTypes, flagPrefixes); !reflect.DeepEqual(known, test.expectedKnown) || !reflect.DeepEqual(unknown, test.expectedUnknown) {
+		app := NewApp("test", "1.0")
+		app.FlagPrefixes = []FlagPrefix{
+			FlagPrefix{
+				Key:         "--",
+				Shorthand:   "-",
+				Description: "options",
+			},
+		}
+		app.FlagTypes = flagTypes
+		app.FlagArgs = test.input
+
+		matchInfo := CommandMatchInfo{
+			unprocessedArgs: app.CommandArgs[:],
+			BindedFlags:     []string{},
+			FlagTypes:       flagTypes,
+		}
+
+		if flags, _ := app.ProcessFlags(matchInfo); !reflect.DeepEqual(flags.Known, test.expectedKnown) || !reflect.DeepEqual(flags.Unknown, test.expectedUnknown) {
 			t.Errorf("Input %q:\n", test.input)
 			t.Errorf("- Expected Known: %v", test.expectedKnown)
-			t.Errorf("- Actual Known: %v", known)
+			t.Errorf("- Actual Known: %v", flags.Known)
 			t.Errorf("- Expected Unknown: %v", test.expectedUnknown)
-			t.Errorf("- Actual Unknown: %v", unknown)
+			t.Errorf("- Actual Unknown: %v", flags.Unknown)
 		}
 	}
 }

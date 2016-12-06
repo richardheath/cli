@@ -19,21 +19,39 @@ type FlagType struct {
 	Validators []FlagValidator
 }
 
+type ProcessedFlags struct {
+	Known   map[string]string
+	Unknown map[string]string
+}
+
 // FlagValidator Validator function that will be used to validate flag type value.
 type FlagValidator func(value string) error
 
-func processFlags(flagArgs []string, flagTypes []FlagType, flagPrefixes map[string]string) (knownFlags map[string]string, unknownFlags map[string]string, err error) {
-	knownFlags = make(map[string]string)
-	unknownFlags = make(map[string]string)
-	validatorErrors := ""
+// FlagValidationFormatter Used to format message on validation error.
+type FlagValidationFormatter func(flagType FlagType, value string, validationError error) string
 
+// DefaultFlagValidationFormatter Default formatter.
+func DefaultFlagValidationFormatter(flagType FlagType, value string, validationError error) string {
+	return flagType.Key + ": " + value + "\n" + validationError.Error() + "\n"
+}
+
+// ProcessFlags Process arguments. Must call ProcessArgs first.
+func (app *App) ProcessFlags(commandInfo CommandMatchInfo) (ProcessedFlags, error) {
+	flagPrefixes := getFlagPrefixes(app)
+	flags := ProcessedFlags{
+		Known:   map[string]string{},
+		Unknown: map[string]string{},
+	}
+
+	validatorErrors := ""
+	flagArgs := append(app.FlagArgs, commandInfo.BindedFlags...)
 	curFlagKey, curFlagPrefix, inFLagKey := "", "", false
 	for _, arg := range flagArgs {
 		prefix, hasPrefix := tryGetFlagPrefix(arg, flagPrefixes)
 
 		if inFLagKey {
 			value := arg
-			flagType, flagTypeFound := getKeyFlagType(flagTypes, flagPrefixes, curFlagKey, curFlagPrefix)
+			flagType, flagTypeFound := getKeyFlagType(commandInfo.FlagTypes, flagPrefixes, curFlagKey, curFlagPrefix)
 
 			// Set value to default when flag have no value.
 			if hasPrefix {
@@ -47,14 +65,13 @@ func processFlags(flagArgs []string, flagTypes []FlagType, flagPrefixes map[stri
 			if flagTypeFound {
 				validationError := runFlagTypeValidators(flagType, value)
 				if validationError != nil {
-					// TODO: Parameterize validation formatter.
-					validatorErrors += flagType.Key + ": " + value + "\n" + validationError.Error() + "\n"
+					validatorErrors += app.FlagValidationFormatter(flagType, value, validationError)
 				}
 
 				normalizedPrefix := flagPrefixes[curFlagPrefix]
-				knownFlags[normalizedPrefix+flagType.Key] = value
+				flags.Known[normalizedPrefix+flagType.Key] = value
 			} else {
-				unknownFlags[curFlagPrefix+curFlagKey] = value
+				flags.Unknown[curFlagPrefix+curFlagKey] = value
 			}
 		}
 
@@ -68,10 +85,10 @@ func processFlags(flagArgs []string, flagTypes []FlagType, flagPrefixes map[stri
 	}
 
 	if validatorErrors != "" {
-		return knownFlags, unknownFlags, fmt.Errorf("Argument validation error:\n%s", validatorErrors)
+		return flags, fmt.Errorf(validatorErrors)
 	}
 
-	return knownFlags, unknownFlags, nil
+	return flags, nil
 }
 
 func getKeyFlagType(flagTypes []FlagType, flagPrefixes map[string]string, flagKey string, flagPrefix string) (flagType FlagType, found bool) {
