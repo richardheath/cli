@@ -43,6 +43,7 @@ func (app *App) Run(args []string) error {
 		return err
 	}
 
+	insertFlagsDefaultValues(flags, match)
 	err = match.Command.Action(flags)
 	if err != nil {
 		return err

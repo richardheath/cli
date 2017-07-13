@@ -125,3 +125,23 @@ func tryGetFlagPrefix(value string, flagPrefixes map[string]string) (prefix stri
 	}
 	return "", false
 }
+
+func insertFlagsDefaultValues(flags ProcessedFlags, commandInfo CommandMatchInfo) {
+	for _, flag := range commandInfo.Command.FlagTypes {
+		flagName := flag.Prefix + flag.Key
+
+		if !isFlagKnown(flags, flagName) {
+			flags.Known[flagName] = flag.Default
+		}
+	}
+}
+
+func isFlagKnown(flags ProcessedFlags, flagName string) bool {
+	for key := range flags.Known {
+		if key == flagName {
+			return true
+		}
+	}
+
+	return false
+}
