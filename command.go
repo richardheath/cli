@@ -23,7 +23,7 @@ type CommandMatchInfo struct {
 	Command         Command
 }
 
-// CommandAction Method that will envoked when running a command.
+// CommandAction Method that will invoked when running a command.
 type CommandAction func(flags ProcessedFlags) error
 
 func getMatchingCommand(commands []Command, match *CommandMatchInfo) error {
@@ -55,5 +55,5 @@ func getMatchingCommand(commands []Command, match *CommandMatchInfo) error {
 		}
 	}
 
-	return fmt.Errorf("Command not found.")
+	return fmt.Errorf("Command not found")
 }
