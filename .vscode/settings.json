@@ -13,7 +13,5 @@
     "go.formatOnSave": true,
     "go.formatTool": "goreturns",
     "go.formatFlags": [],
-    "go.goroot": "c:/Go",
-    "go.gopath": "c:/Projects/Go",
     "go.gocodeAutoBuild": false
 }
