@@ -76,8 +76,8 @@ func splitPathAndFlagValues(flagPrefixes map[string]string, args []string) (comm
 					flags[flagKey] = "true"
 				}
 
-				isShorterPrefix := len(prefix) < len(currentPrefix)
-				if isShorterPrefix {
+				isShorterThanPrefix := len(prefix) < len(currentPrefix)
+				if isShorterThanPrefix {
 					continue
 				}
 
