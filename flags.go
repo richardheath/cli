@@ -32,6 +32,12 @@ func (flags FlagValues) GetValue(flagType string, name string) (string, bool) {
 	return "", false
 }
 
+// SetValue Set flag value.
+func (flags FlagValues) SetValue(flagType string, name string, value string) {
+	key := flagType + ":" + name
+	flags[key] = value
+}
+
 func (flags Flags) getFlag(key string) (Flag, bool) {
 	for _, flag := range flags {
 		if flag.Key == key {
