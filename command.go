@@ -6,24 +6,22 @@ import (
 
 // Command Definition of an executable command.
 type Command struct {
-	Path        []string // Command path relative to its parent.
-	Commands    []*Command
-	Flags       Flags
-	Description string
-	Action      CommandAction
+	Path     []string // Command path relative to its parent.
+	Commands []*Command
+	Flags    Flags
+	Action   CommandAction
 }
 
 // CommandAction Method that will invoked when running a command.
 type CommandAction func(ctx *Context) error
 
 // Command Add sub command.
-func (cmd *Command) Command(path string, description string, action CommandAction) *Command {
+func (cmd *Command) Command(path string, action CommandAction) *Command {
 	subCommand := Command{
-		Path:        splitKeys(path),
-		Description: description,
-		Action:      action,
-		Flags:       Flags{},
-		Commands:    []*Command{},
+		Path:     splitKeys(path),
+		Action:   action,
+		Flags:    Flags{},
+		Commands: []*Command{},
 	}
 
 	cmd.Commands = append(cmd.Commands, &subCommand)
@@ -31,15 +29,14 @@ func (cmd *Command) Command(path string, description string, action CommandActio
 }
 
 // Flag Add flag on current command.
-func (cmd *Command) Flag(flagType string, name string, description string, action FlagAction) *Flag {
+func (cmd *Command) Flag(flagType string, name string, defaultValue string, action FlagAction) *Flag {
 	keys := splitKeys(name)
-
 	flag := Flag{
-		Key:         flagType + ":" + keys[0],
-		Name:        keys[0],
-		FlagType:    flagType,
-		Description: description,
-		Action:      action,
+		Key:      flagType + ":" + keys[0],
+		Name:     keys[0],
+		FlagType: flagType,
+		Default:  defaultValue,
+		Action:   action,
 	}
 
 	if len(keys) > 1 {

@@ -11,7 +11,7 @@ func TestAddSubCommand(t *testing.T) {
 		Commands: []*Command{},
 	}
 
-	subCommand := command.Command("sub cmd", "desc", nil)
+	subCommand := command.Command("sub cmd", nil)
 
 	if subCommand != command.Commands[0] {
 		t.Errorf("returned command doesnt match array pointer")
