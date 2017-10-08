@@ -1,14 +1,17 @@
 package cli
 
+import (
+	"strings"
+)
+
 // Flag Flag definition.
 type Flag struct {
-	Key         string
-	Name        string
-	Shorthand   string
-	FlagType    string
-	Description string
-	Default     string
-	Action      FlagAction
+	Key       string
+	Name      string
+	Shorthand string
+	FlagType  string
+	Default   string
+	Action    FlagAction
 }
 
 // FlagValues Storage for flag values.
@@ -38,12 +41,39 @@ func (flags FlagValues) SetValue(flagType string, name string, value string) {
 	flags[key] = value
 }
 
-func (flags Flags) getFlag(key string) (Flag, bool) {
+// GetFlagsByType Get all flags for given flag type.
+func (flags FlagValues) GetFlagsByType(flagType string) []string {
+	result := []string{}
+	typePrefix := flagType + ":"
+	for flagKey := range flags {
+		if strings.HasPrefix(flagKey, typePrefix) {
+			result = append(result, flagKey[len(typePrefix):])
+		}
+	}
+
+	return result
+}
+
+func (flag Flag) nameKey() string {
+	return flag.FlagType + ":" + flag.Name
+}
+
+func (flag Flag) shorthandKey() string {
+	return flag.FlagType + ":" + flag.Shorthand
+}
+
+func (flags Flags) getFlag(flagType, flagName string) (Flag, bool) {
 	for _, flag := range flags {
-		if flag.Key == key {
+		flagMatches := flag.FlagType == flagType && (flag.Name == flagName || flag.Shorthand == flagName)
+		if flagMatches {
 			return flag, true
 		}
 	}
 
 	return Flag{}, false
+}
+
+func splitFlagKey(key string) (flagType, flagName string) {
+	split := strings.Split(key, ":")
+	return split[0], split[1]
 }
