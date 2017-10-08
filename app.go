@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// App CLI Application
+// App Represents CLI application.
 type App struct {
 	Name         string
 	Version      string
@@ -13,14 +13,16 @@ type App struct {
 	flagPrefixes map[string]string
 }
 
-// Context Context of CLI execution.
+// Context Context of current CLI execution.
 type Context struct {
-	App   *App
-	Flags FlagValues
+	App          *App
+	Flags        FlagValues
+	Data         interface{}
+	commandChain []*Command
 }
 
-// NewApp Initialize App struct.
-func NewApp(name string, version string) App {
+// NewApp Returns a new CLI application.
+func NewApp(name, version string) App {
 	return App{
 		Name:    name,
 		Version: version,
@@ -36,16 +38,17 @@ func NewApp(name string, version string) App {
 func (app *App) Run(args []string) error {
 	commandPath, flags := splitPathAndFlagValues(app.flagPrefixes, args)
 	context := Context{
-		App:   app,
-		Flags: flags,
+		App:          app,
+		Flags:        flags,
+		commandChain: []*Command{app.baseCommand},
 	}
 
-	err := executeCommandChain(*(app.baseCommand), commandPath, &context)
+	err := detectCommandChain(*(app.baseCommand), commandPath, &context)
 	if err != nil {
 		return err
 	}
 
-	return nil
+	return executeCommandChain(&context)
 }
 
 // FlagType Register flag type and it's prefixes.
@@ -56,33 +59,33 @@ func (app *App) FlagType(name string, prefixes ...string) {
 }
 
 // Command Add command on app.
-func (app *App) Command(path string, description string, action CommandAction) *Command {
-	return app.baseCommand.Command(path, description, action)
+func (app *App) Command(path string, action CommandAction) *Command {
+	return app.baseCommand.Command(path, action)
 }
 
 // Flag Add flag on app.
-func (app *App) Flag(flagType string, name string, description string, action FlagAction) *Flag {
-	return app.baseCommand.Flag(flagType, name, description, action)
+func (app *App) Flag(flagType, name, defaultValue string, action FlagAction) *Flag {
+	return app.baseCommand.Flag(flagType, name, defaultValue, action)
 }
 
 func splitPathAndFlagValues(flagPrefixes map[string]string, args []string) (commandPath []string, flags FlagValues) {
 	flags = FlagValues{}
 	var currentFlag, flagKey, currentPrefix string
 	for _, arg := range args {
-		for prefix := range flagPrefixes {
+		for prefix, flagType := range flagPrefixes {
 			if strings.HasPrefix(arg, prefix) {
 				flagHaveNoValue := currentFlag != "" && currentFlag != arg
 				if flagHaveNoValue {
-					flags[flagKey] = "true"
+					flags[flagKey] = ""
 				}
 
-				isShorterThanPrefix := len(prefix) < len(currentPrefix)
-				if isShorterThanPrefix {
+				isShorterThanLastPrefix := len(prefix) < len(currentPrefix)
+				if isShorterThanLastPrefix {
 					continue
 				}
 
 				currentPrefix = prefix
-				flagKey = flagPrefixes[prefix] + ":" + arg[len(prefix):]
+				flagKey = flagType + ":" + arg[len(prefix):]
 				currentFlag = arg
 			}
 		}
@@ -103,13 +106,12 @@ func splitPathAndFlagValues(flagPrefixes map[string]string, args []string) (comm
 	return
 }
 
-func executeCommandChain(parentCommand Command, commandPath []string, context *Context) error {
+func detectCommandChain(parentCommand Command, unprocessedArgs []string, context *Context) error {
 	for _, command := range parentCommand.Commands {
 		argPos := 0
-
 		for _, path := range command.Path {
 			isFlagBinder := strings.HasPrefix(path, "{{") && strings.HasSuffix(path, "}}")
-			commandPathDontMatch := commandPath[argPos] != path && !isFlagBinder
+			commandPathDontMatch := unprocessedArgs[argPos] != path && !isFlagBinder
 
 			if commandPathDontMatch {
 				argPos = 0
@@ -118,48 +120,70 @@ func executeCommandChain(parentCommand Command, commandPath []string, context *C
 
 			if isFlagBinder {
 				flagKey := path[2 : len(path)-2]
-				context.Flags[flagKey] = commandPath[argPos]
+				context.Flags[flagKey] = unprocessedArgs[argPos]
 			}
 
 			argPos++
 		}
 
-		partialMatch := argPos > 0
-		if partialMatch {
-			err := executeFlagActions(*command, context)
-			if err != nil {
-				return err
-			}
+		if partialMatch := argPos > 0; partialMatch {
+			context.commandChain = append(context.commandChain, command)
 
-			if command.Action != nil {
-				err = command.Action(context)
-				if err != nil {
-					return err
-				}
-			}
-
-			allCommandPathProcessed := argPos == len(commandPath)
-			if allCommandPathProcessed {
+			if allArgsProcessed := argPos == len(unprocessedArgs); allArgsProcessed {
 				return nil
 			}
 
-			unprocessedPath := commandPath[argPos:]
-			return executeCommandChain(*command, unprocessedPath, context)
+			unprocessedPath := unprocessedArgs[argPos:]
+			return detectCommandChain(*command, unprocessedPath, context)
 		}
 	}
 
 	return fmt.Errorf("Command not found")
 }
 
-func executeFlagActions(command Command, context *Context) error {
-	for rawKey, rawValue := range context.Flags {
-		flag, found := command.Flags.getFlag(rawKey)
-
-		if found && flag.Action != nil {
-			context.Flags[rawKey] = rawValue
-			flag.Action(rawValue, context)
+func executeCommandChain(context *Context) error {
+	for _, command := range context.commandChain {
+		err := executeFlagActions(*command, context)
+		if err != nil {
+			return err
 		}
 
+		if command.Action != nil {
+			err = command.Action(context)
+			if err != nil {
+				return err
+			}
+		}
 	}
+
+	return nil
+}
+
+func executeFlagActions(command Command, context *Context) error {
+	for _, flag := range command.Flags {
+		flagValue := ""
+		if value, matchFlagName := context.Flags[flag.nameKey()]; matchFlagName {
+			flagValue = value
+		} else if value, matchFlagShorthand := context.Flags[flag.shorthandKey()]; matchFlagShorthand {
+			flagValue = value
+		} else if flag.Default != "" {
+			flagValue = flag.Default
+		} else {
+			continue
+		}
+
+		if flagValue == "" && flag.Default != "" {
+			flagValue = flag.Default
+		}
+
+		context.Flags[flag.nameKey()] = flagValue
+		if flag.Action != nil {
+			err := flag.Action(flagValue, context)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
